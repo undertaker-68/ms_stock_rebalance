@@ -2,10 +2,12 @@ import os
 from app.config import load_config
 from app.ozon_client import OzonClient
 from app.ms_client import MoySkladClient
+from app.catalog import build_catalog
 from app.assortment_cache import AssortmentCache
-from app.stock_report import build_id_to_article, extract_need_by_article
+from app.stock_report import extract_need_by_article
 from app.planner import targets_for_total, plan_moves_for_article, group_moves
 from app.state_store import load_state, save_state
+from app.bundles import apply_bundle_current
 
 def main():
     cfg = load_config()
@@ -23,22 +25,33 @@ def main():
     print(f"Ozon offer_ids total: {len(offer_ids)}")
 
     ms = MoySkladClient(cfg.ms_token)
-    cache = AssortmentCache(ms, cfg.cache_path)
+
+    print("Building MS catalog (products + bundles)...")
+    id2a, article2meta = build_catalog(ms, include_bundles=True)
+    print(f"id2article size: {len(id2a)}")
+    print(f"article2meta size: {len(article2meta)}")
+
+    cache = AssortmentCache(ms, cfg.cache_path, article2meta)
 
     rep = ms.report_stock_by_store()
-
-    # построим id->article
-    print("Building MS id->article map (products + bundles)...")
-    id2a = build_id_to_article(ms, include_bundles=True)
-    print(f"id2article size: {len(id2a)}")
-
     store_ids = {cfg.store_sklad, cfg.store_ozon, cfg.store_wb, cfg.store_yandex}
+
     need_map = extract_need_by_article(rep, store_ids, id2a)
     print(f"MS stock report articles parsed: {len(need_map)}")
 
-    # только артикула из Ozon
-    filtered = {a: need_map.get(a, {}) for a in offer_ids}
-    print(f"Articles to process (ozon ∩ ms_report): {sum(1 for a in filtered if a in need_map)}")
+    # товары только из Ozon
+    current_by_article = {a: need_map.get(a, {}) for a in offer_ids}
+    print(f"Articles to process (ozon ∩ ms_report): {sum(1 for a in current_by_article if a in need_map)}")
+
+    # пересчёт для комплектов
+    apply_bundle_current(
+        articles=set(current_by_article.keys()),
+        store_ids=store_ids,
+        current_by_article=current_by_article,
+        cache=cache,
+        id2article=id2a,
+        article2meta=article2meta,
+    )
 
     state = load_state(cfg.state_path)
     prev = state.get("last_need") or {}
@@ -46,7 +59,7 @@ def main():
     per_article_moves = {}
     changed = 0
 
-    for article, cur in filtered.items():
+    for article, cur in current_by_article.items():
         cur_full = {sid: int(cur.get(sid, 0)) for sid in store_ids}
         total = sum(cur_full.values())
         tgt = targets_for_total(total, cfg.store_sklad, cfg.store_ozon, cfg.store_wb, cfg.store_yandex)
