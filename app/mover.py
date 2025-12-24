@@ -43,6 +43,8 @@ def create_moves(
 
         positions = []
         skipped = 0
+        no_price = 0
+
         for ln in lines:
             art = ln["article"]
             qty = int(ln["qty"])
@@ -54,10 +56,19 @@ def create_moves(
                 skipped += 1
                 continue
 
-            positions.append({
+            pos = {
                 "assortment": {"meta": meta},
-                "quantity": qty
-            })
+                "quantity": qty,
+            }
+
+            price = cache.get_price(art)
+            if price is None:
+                no_price += 1
+                # оставляем без price -> в UI может быть 0, но это редкость
+            else:
+                pos["price"] = int(price)  # копейки
+
+            positions.append(pos)
 
         if not positions:
             print(f"[SKIP] No positions after meta resolve, skipped={skipped}")
@@ -75,21 +86,19 @@ def create_moves(
             if st:
                 payload["state"] = move_state_meta_for_move(st)
 
-            print(f"[SEND] creating move {source_id} -> {target_id} positions={len(part)} skipped={skipped}")
+            print(f"[SEND] creating move {source_id} -> {target_id} positions={len(part)} skipped={skipped} no_price={no_price}")
 
             try:
                 ms.create_move(payload)
                 print("[OK] created move")
             except Exception as e:
                 print(f"[ERR] create move failed: {e}")
-                # fallback: попробуем без state (иногда MS ругается на метадату статуса)
                 if "state" in payload:
                     payload2 = dict(payload)
                     payload2.pop("state", None)
                     try:
                         ms.create_move(payload2)
                         print("[OK] created move (without state)")
-                        continue
                     except Exception as e2:
                         print(f"[ERR] fallback without state failed: {e2}")
                 continue
