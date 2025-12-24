@@ -1,5 +1,6 @@
 from app.http import request_json
 from typing import Any
+import urllib.parse
 
 class MoySkladClient:
     def __init__(self, token: str):
@@ -16,18 +17,19 @@ class MoySkladClient:
         url = "https://api.moysklad.ru/api/remap/1.2/report/stock/bystore"
         return request_json("GET", url, headers=self._headers())
 
-    def list_products(self, offset: int = 0, limit: int = 1000) -> Any:
-        url = f"https://api.moysklad.ru/api/remap/1.2/entity/product?offset={offset}&limit={limit}"
-        return request_json("GET", url, headers=self._headers())
+    def list_products(self, offset: int = 0, limit: int = 1000, expand: str | None = None) -> Any:
+        base = "https://api.moysklad.ru/api/remap/1.2/entity/product"
+        qs = f"offset={offset}&limit={limit}"
+        if expand:
+            qs += "&expand=" + urllib.parse.quote(expand, safe=",().")
+        return request_json("GET", f"{base}?{qs}", headers=self._headers())
 
-    def list_bundles(self, offset: int = 0, limit: int = 1000) -> Any:
-        url = f"https://api.moysklad.ru/api/remap/1.2/entity/bundle?offset={offset}&limit={limit}"
-        return request_json("GET", url, headers=self._headers())
-
-    def list_assortment_by_article(self, article: str, limit: int = 1) -> Any:
-        url = "https://api.moysklad.ru/api/remap/1.2/entity/assortment"
-        params = f"?filter=article={article}&limit={limit}"
-        return request_json("GET", url + params, headers=self._headers())
+    def list_bundles(self, offset: int = 0, limit: int = 1000, expand: str | None = None) -> Any:
+        base = "https://api.moysklad.ru/api/remap/1.2/entity/bundle"
+        qs = f"offset={offset}&limit={limit}"
+        if expand:
+            qs += "&expand=" + urllib.parse.quote(expand, safe=",().")
+        return request_json("GET", f"{base}?{qs}", headers=self._headers())
 
     def get_bundle(self, bundle_id: str) -> Any:
         url = f"https://api.moysklad.ru/api/remap/1.2/entity/bundle/{bundle_id}"
