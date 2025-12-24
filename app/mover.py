@@ -34,10 +34,6 @@ def create_moves(
     dry_run: bool,
     max_positions: int,
 ) -> None:
-    """
-    grouped: {(source,target): [{"article":..,"qty":..}, ...]}
-    DRY_RUN: ничего не создаем и не резолвим meta (чтобы не ловить 429)
-    """
     for (source_id, target_id), lines in grouped.items():
         total = sum(int(x.get("qty") or 0) for x in lines)
         print(f"[PLAN] Move {source_id} -> {target_id} lines={len(lines)} total_qty={total}")
@@ -45,7 +41,6 @@ def create_moves(
         if dry_run:
             continue
 
-        # Боевой режим: нужны meta ассортимента
         positions = []
         skipped = 0
         for ln in lines:
@@ -53,16 +48,19 @@ def create_moves(
             qty = int(ln["qty"])
             if qty <= 0:
                 continue
-            info = cache.get_or_fetch(art)
-            if not info or not info.get("meta"):
+
+            meta = cache.get_meta(art)
+            if not meta:
                 skipped += 1
                 continue
+
             positions.append({
-                "assortment": {"meta": info["meta"]},
+                "assortment": {"meta": meta},
                 "quantity": qty
             })
 
         if not positions:
+            print(f"[SKIP] No positions after meta resolve, skipped={skipped}")
             continue
 
         for part in chunked(positions, max_positions):
