@@ -28,10 +28,11 @@ def main():
     ms = MoySkladClient(cfg.ms_token)
 
     print("Building MS catalog (products + bundles)...")
+    id2a, article2meta, article2price = build_catalog(ms, include_bundles=True)
     print(f"id2article size: {len(id2a)}")
     print(f"article2meta size: {len(article2meta)}")
+    print(f"article2price size: {len(article2price)}")
 
-    id2a, article2meta, article2price = build_catalog(ms, include_bundles=True)
     cache = AssortmentCache(ms, cfg.cache_path, article2meta, article2price)
 
     rep = ms.report_stock_by_store()
@@ -40,11 +41,10 @@ def main():
     need_map = extract_need_by_article(rep, store_ids, id2a)
     print(f"MS stock report articles parsed: {len(need_map)}")
 
-    # товары только из Ozon
     current_by_article = {a: need_map.get(a, {}) for a in offer_ids}
     print(f"Articles to process (ozon ∩ ms_report): {sum(1 for a in current_by_article if a in need_map)}")
 
-    # пересчёт для комплектов
+    # пересчёт current для комплектов
     apply_bundle_current(
         articles=set(current_by_article.keys()),
         store_ids=store_ids,
