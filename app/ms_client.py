@@ -13,13 +13,18 @@ class MoySkladClient:
         }
 
     def report_stock_by_store(self) -> Any:
-        # Остатки по складам (стандартный отчёт)
         url = "https://api.moysklad.ru/api/remap/1.2/report/stock/bystore"
         return request_json("GET", url, headers=self._headers())
 
     def list_assortment_by_article(self, article: str, limit: int = 1) -> Any:
-        # Ищем товар/комплект по артикулу
         url = "https://api.moysklad.ru/api/remap/1.2/entity/assortment"
-        # фильтр: article=...
         params = f"?filter=article={article}&limit={limit}"
         return request_json("GET", url + params, headers=self._headers())
+
+    def get_bundle(self, bundle_id: str) -> Any:
+        url = f"https://api.moysklad.ru/api/remap/1.2/entity/bundle/{bundle_id}"
+        return request_json("GET", url, headers=self._headers())
+
+    def create_move(self, payload: dict[str, Any]) -> Any:
+        url = "https://api.moysklad.ru/api/remap/1.2/entity/move"
+        return request_json("POST", url, headers=self._headers(), json=payload)
