@@ -12,6 +12,7 @@ from app.bundles import apply_bundle_current
 def main():
     cfg = load_config()
     dry_run = os.getenv("DRY_RUN", "1").strip() != "0"
+    force = os.getenv("FORCE_REPLAN", "0").strip() == "1"
 
     oz1 = OzonClient(cfg.ozon1.client_id, cfg.ozon1.api_key)
     oz2 = OzonClient(cfg.ozon2.client_id, cfg.ozon2.api_key)
@@ -67,7 +68,7 @@ def main():
         cur_sig = {k: cur_full[k] for k in sorted(cur_full.keys())}
         tgt_sig = {k: tgt[k] for k in sorted(tgt.keys())}
 
-        if prev.get(article) == {"cur": cur_sig, "tgt": tgt_sig}:
+        if (not force) and prev.get(article) == {"cur": cur_sig, "tgt": tgt_sig}:
             continue
 
         changed += 1
