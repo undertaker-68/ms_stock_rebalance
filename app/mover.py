@@ -82,4 +82,14 @@ def create_moves(
                 print("[OK] created move")
             except Exception as e:
                 print(f"[ERR] create move failed: {e}")
+                # fallback: попробуем без state (иногда MS ругается на метадату статуса)
+                if "state" in payload:
+                    payload2 = dict(payload)
+                    payload2.pop("state", None)
+                    try:
+                        ms.create_move(payload2)
+                        print("[OK] created move (without state)")
+                        continue
+                    except Exception as e2:
+                        print(f"[ERR] fallback without state failed: {e2}")
                 continue
