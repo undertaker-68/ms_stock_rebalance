@@ -31,8 +31,8 @@ def main():
     print(f"id2article size: {len(id2a)}")
     print(f"article2meta size: {len(article2meta)}")
 
-    perl -0777 -i -pe 's/id2a, article2meta = build_catalog\(ms, include_bundles=True\)/id2a, article2meta, article2price = build_catalog(ms, include_bundles=True)/s' app/main.py
-    perl -0777 -i -pe 's/cache = AssortmentCache\(ms, cfg\.cache_path, article2meta\)/cache = AssortmentCache(ms, cfg.cache_path, article2meta, article2price)/s' app/main.py
+    id2a, article2meta, article2price = build_catalog(ms, include_bundles=True)
+    cache = AssortmentCache(ms, cfg.cache_path, article2meta, article2price)
 
     rep = ms.report_stock_by_store()
     store_ids = {cfg.store_sklad, cfg.store_ozon, cfg.store_wb, cfg.store_yandex}
