@@ -2,16 +2,14 @@ import json
 import os
 from typing import Any
 
-from app.ms_client import MoySkladClient
-
 def _id_from_href(href: str) -> str:
-    # .../entity/product/<id> or .../entity/bundle/<id>
     return href.rstrip("/").split("/")[-1]
 
 class AssortmentCache:
-    def __init__(self, ms: MoySkladClient, cache_path: str):
+    def __init__(self, ms, cache_path: str, article2meta: dict[str, dict]):
         self.ms = ms
         self.cache_path = cache_path
+        self.article2meta = article2meta  # <-- главное: готовая карта
         self._cache: dict[str, Any] = {}
         self._dirty = False
         self._load()
@@ -36,49 +34,40 @@ class AssortmentCache:
         os.replace(tmp, self.cache_path)
         self._dirty = False
 
-    def get(self, article: str) -> dict[str, Any] | None:
-        return self._cache.get(article)
+    def get_meta(self, article: str) -> dict[str, Any] | None:
+        m = self.article2meta.get(article)
+        if not m:
+            return None
+        return {"href": m["href"], "type": m["type"]}
 
-    def get_or_fetch(self, article: str) -> dict[str, Any] | None:
-        v = self._cache.get(article)
-        if v is not None:
-            return v
+    def get_bundle_components(self, article: str) -> list[dict[str, Any]] | None:
+        """
+        Возвращает список компонентов bundle:
+          [{"qty": <float>, "meta": {"href":..., "type":...}}, ...]
+        Кэшируем в файле, чтобы не дергать bundle каждый запуск.
+        """
+        ent = self._cache.get(article)
+        if ent and "components" in ent:
+            return ent["components"]
 
-        data = self.ms.list_assortment_by_article(article, limit=10)
-        rows = (data or {}).get("rows") or []
-        # берем первый совпавший (обычно один)
-        if not rows:
-            self._cache[article] = None
-            self._dirty = True
+        meta = self.get_meta(article)
+        if not meta or meta.get("type") != "bundle":
             return None
 
-        meta = (rows[0].get("meta") or {})
-        if not meta.get("href") or not meta.get("type"):
-            self._cache[article] = None
-            self._dirty = True
-            return None
+        bundle_id = _id_from_href(meta["href"])
+        b = self.ms.get_bundle(bundle_id)
+        comps = (((b or {}).get("components") or {}).get("rows")) or []
+        comp_rows = []
+        for c in comps:
+            qty = float(c.get("quantity") or 0)
+            a = (c.get("assortment") or {}).get("meta") or {}
+            if not a.get("href") or not a.get("type") or qty <= 0:
+                continue
+            comp_rows.append({
+                "qty": qty,
+                "meta": {"href": a["href"].split("?")[0], "type": a["type"]},
+            })
 
-        entry: dict[str, Any] = {
-            "meta": {"href": meta["href"], "type": meta["type"]},
-        }
-
-        # если это комплект — подтянем компоненты
-        if meta["type"] == "bundle":
-            bundle_id = _id_from_href(meta["href"])
-            b = self.ms.get_bundle(bundle_id)
-            comps = (((b or {}).get("components") or {}).get("rows")) or []
-            comp_rows = []
-            for c in comps:
-                qty = float(c.get("quantity") or 0)
-                a = (c.get("assortment") or {}).get("meta") or {}
-                if not a.get("href") or not a.get("type") or qty <= 0:
-                    continue
-                comp_rows.append({
-                    "qty": qty,
-                    "meta": {"href": a["href"], "type": a["type"]},
-                })
-            entry["components"] = comp_rows
-
-        self._cache[article] = entry
+        self._cache[article] = {"components": comp_rows}
         self._dirty = True
-        return entry
+        return comp_rows
