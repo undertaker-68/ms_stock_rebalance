@@ -16,6 +16,14 @@ class MoySkladClient:
         url = "https://api.moysklad.ru/api/remap/1.2/report/stock/bystore"
         return request_json("GET", url, headers=self._headers())
 
+    def list_products(self, offset: int = 0, limit: int = 1000) -> Any:
+        url = f"https://api.moysklad.ru/api/remap/1.2/entity/product?offset={offset}&limit={limit}"
+        return request_json("GET", url, headers=self._headers())
+
+    def list_bundles(self, offset: int = 0, limit: int = 1000) -> Any:
+        url = f"https://api.moysklad.ru/api/remap/1.2/entity/bundle?offset={offset}&limit={limit}"
+        return request_json("GET", url, headers=self._headers())
+
     def list_assortment_by_article(self, article: str, limit: int = 1) -> Any:
         url = "https://api.moysklad.ru/api/remap/1.2/entity/assortment"
         params = f"?filter=article={article}&limit={limit}"
