@@ -8,8 +8,8 @@ def store_meta(store_id: str) -> dict[str, Any]:
 def org_meta(org_id: str) -> dict[str, Any]:
     return {"meta": {"href": f"https://api.moysklad.ru/api/remap/1.2/entity/organization/{org_id}", "type": "organization"}}
 
-def state_meta(state_id: str) -> dict[str, Any]:
-    return {"meta": {"href": f"https://api.moysklad.ru/api/remap/1.2/entity/customerorder/metadata/states/{state_id}", "type": "state"}}
+def move_state_meta_for_move(state_id: str) -> dict[str, Any]:
+    return {"meta": {"href": f"https://api.moysklad.ru/api/remap/1.2/entity/move/metadata/states/{state_id}", "type": "state"}}
 
 def move_state_for_target(cfg, target_store_id: str) -> str | None:
     if target_store_id == cfg.store_ozon:
@@ -36,9 +36,16 @@ def create_moves(
 ) -> None:
     """
     grouped: {(source,target): [{"article":..,"qty":..}, ...]}
+    DRY_RUN: ничего не создаем и не резолвим meta (чтобы не ловить 429)
     """
     for (source_id, target_id), lines in grouped.items():
-        # превращаем в позиции с meta ассортимента
+        total = sum(int(x.get("qty") or 0) for x in lines)
+        print(f"[PLAN] Move {source_id} -> {target_id} lines={len(lines)} total_qty={total}")
+
+        if dry_run:
+            continue
+
+        # Боевой режим: нужны meta ассортимента
         positions = []
         skipped = 0
         for ln in lines:
@@ -68,19 +75,13 @@ def create_moves(
 
             st = move_state_for_target(cfg, target_id)
             if st:
-                # ВАЖНО: state endpoint у Move другой, но многие используют общий meta/states.
-                # Если МС не примет — просто уберем в следующем патче.
-                payload["state"] = {"meta": {"href": f"https://api.moysklad.ru/api/remap/1.2/entity/move/metadata/states/{st}", "type": "state"}}
+                payload["state"] = move_state_meta_for_move(st)
 
-            print(f"[PLAN] Move {source_id} -> {target_id} positions={len(part)} skipped={skipped}")
-
-            if dry_run:
-                continue
+            print(f"[SEND] creating move {source_id} -> {target_id} positions={len(part)} skipped={skipped}")
 
             try:
                 ms.create_move(payload)
                 print("[OK] created move")
             except Exception as e:
                 print(f"[ERR] create move failed: {e}")
-                # пропускаем и идём дальше
                 continue
