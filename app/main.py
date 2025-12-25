@@ -63,20 +63,40 @@ def main():
     for article, cur in current_by_article.items():
         cur_full = {sid: int(cur.get(sid, 0)) for sid in store_ids}
         total = sum(cur_full.values())
-        tgt = targets_for_total(total, cfg.store_sklad, cfg.store_ozon, cfg.store_wb, cfg.store_yandex)
+
+        # цели по текущим правилам
+        tgt = targets_for_total(
+            total,
+            cfg.store_sklad, cfg.store_ozon, cfg.store_wb, cfg.store_yandex,
+        )
 
         cur_sig = {k: cur_full[k] for k in sorted(cur_full.keys())}
         tgt_sig = {k: tgt[k] for k in sorted(tgt.keys())}
 
-        if (not force) and prev.get(article) == {"cur": cur_sig, "tgt": tgt_sig}:
-            continue
+        # ---- НОВОЕ: умный ретрай, если прошлый раз "план был", но остатки не изменились ----
+        prev_entry = prev.get(article)
+
+        if (not force) and prev_entry:
+            same_plan = (prev_entry.get("cur") == cur_sig and prev_entry.get("tgt") == tgt_sig)
+            same_total = (prev_entry.get("total") == total)
+
+            if same_plan and (not same_total):
+                # план тот же, но total изменился -> значит что-то реально происходило, пропускаем
+                continue
+
+            if same_plan and same_total:
+                # план тот же И total не менялся -> вероятно прошлый запуск не сработал (не проведено/ошибка)
+                # поэтому НЕ пропускаем, а пытаемся ещё раз (ретрай)
+                pass
+        # -------------------------------------------------------------------------------
 
         changed += 1
         moves = plan_moves_for_article(article, cur_full, tgt)
         if moves:
             per_article_moves[article] = moves
 
-        prev[article] = {"cur": cur_sig, "tgt": tgt_sig}
+        # ---- НОВОЕ: сохраняем total в state ----
+        prev[article] = {"cur": cur_sig, "tgt": tgt_sig, "total": total}
 
     print(f"Changed articles: {changed}")
     grouped = group_moves(per_article_moves)
