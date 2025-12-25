@@ -30,6 +30,16 @@ def targets_for_total(total: int, store_sklad: str, store_ozon: str, store_wb: s
     if total == 4:
         return {store_sklad: 1, store_ozon: 1, store_wb: 1, store_yandex: 1}
 
+        # правило 5..9: 50/50 на Ozon и WB, остаток/округление -> СКЛАД
+    # Ozon "наличие" мы не проверяем здесь (оно проверяется списком товаров ранее),
+    # WB тоже не проверяем (WB API нет), поэтому распределяем 50/50 всегда.
+    if 5 <= total <= 9:
+        half = total // 2  # округление вниз
+        oz = half
+        wb = half
+        sk = total - (oz + wb)  # остаток (в т.ч. при нечётном) -> СКЛАД
+        return {store_sklad: sk, store_ozon: oz, store_wb: wb, store_yandex: 0}
+
     # проценты
     oz = math.floor(total * 0.10)
     wb = math.floor(total * 0.10)
