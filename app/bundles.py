@@ -2,6 +2,8 @@ from typing import Dict
 import math
 
 def _id_from_href(href: str) -> str:
+    # href can contain query params like ?expand=...
+    href = href.split("?", 1)[0]
     return href.rstrip("/").split("/")[-1]
 
 def apply_bundle_current(
