@@ -38,3 +38,7 @@ class MoySkladClient:
     def create_move(self, payload: dict[str, Any]) -> Any:
         url = "https://api.moysklad.ru/api/remap/1.2/entity/move"
         return request_json("POST", url, headers=self._headers(), json=payload)
+
+    def update_move(self, move_id: str, payload: dict[str, Any]) -> Any:
+        url = f"https://api.moysklad.ru/api/remap/1.2/entity/move/{move_id}"
+        return request_json("PUT", url, headers=self._headers(), json=payload)
