@@ -3,6 +3,8 @@ import os
 from typing import Any
 
 def _id_from_href(href: str) -> str:
+    # href can contain query params like ?expand=...
+    href = href.split("?", 1)[0]
     return href.rstrip("/").split("/")[-1]
 
 class AssortmentCache:
